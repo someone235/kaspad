@@ -473,7 +473,15 @@ func (flow *handleRelayInvsFlow) syncMissingBlockBodies(highHash *externalapi.Do
 		}
 	}
 
-	return flow.Domain().Consensus().ResolveVirtual()
+	err = flow.Domain().Consensus().ResolveVirtual()
+	if err != nil {
+		return err
+	}
+
+	err = flow.OnUTXOSetOverride()
+	if err != nil {
+		return err
+	}
 }
 
 // dequeueIncomingMessageAndSkipInvs is a convenience method to be used during

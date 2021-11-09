@@ -153,7 +153,7 @@ func setupRPC(
 		shutDownChan,
 	)
 	protocolManager.SetOnBlockAddedToDAGHandler(rpcManager.NotifyBlockAddedToDAG)
-	protocolManager.SetOnPruningPointUTXOSetOverrideHandler(rpcManager.NotifyPruningPointUTXOSetOverride)
+	protocolManager.SetOnUTXOSetOverrideHandler(rpcManager.NotifyUTXOSetOverride)
 
 	return rpcManager
 }

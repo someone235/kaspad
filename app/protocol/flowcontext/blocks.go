@@ -60,11 +60,11 @@ func (f *FlowContext) OnNewBlock(block *externalapi.DomainBlock,
 	return f.broadcastTransactionsAfterBlockAdded(newBlocks, allAcceptedTransactions)
 }
 
-// OnPruningPointUTXOSetOverride calls the handler function whenever the UTXO set
-// resets due to pruning point change via IBD.
-func (f *FlowContext) OnPruningPointUTXOSetOverride() error {
-	if f.onPruningPointUTXOSetOverrideHandler != nil {
-		return f.onPruningPointUTXOSetOverrideHandler()
+// OnUTXOSetOverride calls the handler function whenever the UTXO set
+// resets via IBD.
+func (f *FlowContext) OnUTXOSetOverride() error {
+	if f.onUTXOSetOverrideHandler != nil {
+		return f.onUTXOSetOverrideHandler()
 	}
 	return nil
 }

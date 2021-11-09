@@ -355,7 +355,7 @@ func (flow *handleRelayInvsFlow) fetchMissingUTXOSet(consensus externalapi.Conse
 		return false, protocolerrors.ConvertToBanningProtocolErrorIfRuleError(err, "error with pruning point UTXO set")
 	}
 
-	err = flow.OnPruningPointUTXOSetOverride()
+	err = flow.OnUTXOSetOverride()
 	if err != nil {
 		return false, err
 	}

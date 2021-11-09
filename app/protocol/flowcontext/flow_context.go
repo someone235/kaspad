@@ -24,9 +24,8 @@ import (
 // when a block is added to the DAG
 type OnBlockAddedToDAGHandler func(block *externalapi.DomainBlock, blockInsertionResult *externalapi.BlockInsertionResult) error
 
-// OnPruningPointUTXOSetOverrideHandler is a handle function that's triggered whenever the UTXO set
-// resets due to pruning point change via IBD.
-type OnPruningPointUTXOSetOverrideHandler func() error
+// OnUTXOSetOverrideHandler is a handle function that's triggered whenever the UTXO set via IBD.
+type OnUTXOSetOverrideHandler func() error
 
 // OnTransactionAddedToMempoolHandler is a handler function that's triggered
 // when a transaction is added to the mempool
@@ -43,9 +42,9 @@ type FlowContext struct {
 
 	timeStarted int64
 
-	onBlockAddedToDAGHandler             OnBlockAddedToDAGHandler
-	onPruningPointUTXOSetOverrideHandler OnPruningPointUTXOSetOverrideHandler
-	onTransactionAddedToMempoolHandler   OnTransactionAddedToMempoolHandler
+	onBlockAddedToDAGHandler           OnBlockAddedToDAGHandler
+	onUTXOSetOverrideHandler           OnUTXOSetOverrideHandler
+	onTransactionAddedToMempoolHandler OnTransactionAddedToMempoolHandler
 
 	lastRebroadcastTime         time.Time
 	sharedRequestedTransactions *transactionrelay.SharedRequestedTransactions
@@ -105,9 +104,9 @@ func (f *FlowContext) SetOnBlockAddedToDAGHandler(onBlockAddedToDAGHandler OnBlo
 	f.onBlockAddedToDAGHandler = onBlockAddedToDAGHandler
 }
 
-// SetOnPruningPointUTXOSetOverrideHandler sets the onPruningPointUTXOSetOverrideHandler handler
-func (f *FlowContext) SetOnPruningPointUTXOSetOverrideHandler(onPruningPointUTXOSetOverrideHandler OnPruningPointUTXOSetOverrideHandler) {
-	f.onPruningPointUTXOSetOverrideHandler = onPruningPointUTXOSetOverrideHandler
+// SetOnUTXOSetOverrideHandler sets the onUTXOSetOverrideHandler handler
+func (f *FlowContext) SetOnUTXOSetOverrideHandler(onUTXOSetOverrideHandler OnUTXOSetOverrideHandler) {
+	f.onUTXOSetOverrideHandler = onUTXOSetOverrideHandler
 }
 
 // SetOnTransactionAddedToMempoolHandler sets the onTransactionAddedToMempool handler

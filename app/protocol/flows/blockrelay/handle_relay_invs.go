@@ -24,7 +24,7 @@ type RelayInvsContext interface {
 	Domain() domain.Domain
 	Config() *config.Config
 	OnNewBlock(block *externalapi.DomainBlock, blockInsertionResult *externalapi.BlockInsertionResult) error
-	OnPruningPointUTXOSetOverride() error
+	OnUTXOSetOverride() error
 	SharedRequestedBlocks() *SharedRequestedBlocks
 	Broadcast(message appmessage.Message) error
 	AddOrphan(orphanBlock *externalapi.DomainBlock)
