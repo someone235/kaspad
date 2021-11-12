@@ -161,7 +161,14 @@ func (s *consensus) ValidateAndInsertBlock(block *externalapi.DomainBlock, shoul
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	return s.blockProcessor.ValidateAndInsertBlock(block, shouldValidateAgainstUTXO)
+	return s.blockProcessor.ValidateAndInsertBlock(block, shouldValidateAgainstUTXO, false)
+}
+
+func (s *consensus) ValidateAndInsertBlockWithSPVOnlyValidation(block *externalapi.DomainBlock) (*externalapi.BlockInsertionResult, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	return s.blockProcessor.ValidateAndInsertBlock(block, false, true)
 }
 
 // ValidateTransactionAndPopulateWithConsensusData validates the given transaction
@@ -714,6 +721,7 @@ func (s *consensus) PopulateMass(transaction *externalapi.DomainTransaction) {
 }
 
 func (s *consensus) ResolveVirtual() error {
+	log.Infof("Resolving the virtual")
 	// In order to prevent a situation that the consensus lock is held for too much time, we
 	// release the lock each time resolve 100 blocks.
 	for {
@@ -750,6 +758,9 @@ func (s *consensus) ValidatePruningPointProof(pruningPointProof *externalapi.Pru
 }
 
 func (s *consensus) ApplyPruningPointProof(pruningPointProof *externalapi.PruningPointProof) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	stagingArea := model.NewStagingArea()
 	err := s.pruningProofManager.ApplyPruningPointProof(stagingArea, pruningPointProof)
 	if err != nil {
@@ -762,4 +773,22 @@ func (s *consensus) ApplyPruningPointProof(pruningPointProof *externalapi.Prunin
 	}
 
 	return nil
+}
+
+func (s *consensus) IsVirtualReady() (bool, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	stagingArea := model.NewStagingArea()
+	pruningPoint, err := s.pruningStore.PruningPoint(s.databaseContext, stagingArea)
+	if err != nil {
+		return false, err
+	}
+
+	blockStatus, err := s.blockStatusStore.Get(s.databaseContext, stagingArea, pruningPoint)
+	if err != nil {
+		return false, err
+	}
+
+	return blockStatus == externalapi.StatusUTXOValid, nil
 }

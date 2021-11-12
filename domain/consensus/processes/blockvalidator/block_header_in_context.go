@@ -13,7 +13,7 @@ import (
 
 // ValidateHeaderInContext validates block headers in the context of the current
 // consensus state
-func (v *blockValidator) ValidateHeaderInContext(stagingArea *model.StagingArea, blockHash *externalapi.DomainHash, isBlockWithTrustedData bool) error {
+func (v *blockValidator) ValidateHeaderInContext(stagingArea *model.StagingArea, blockHash *externalapi.DomainHash, isBlockWithTrustedData, spvOnlyValidation bool) error {
 	onEnd := logger.LogAndMeasureExecutionTime(log, "ValidateHeaderInContext")
 	defer onEnd()
 
@@ -44,9 +44,11 @@ func (v *blockValidator) ValidateHeaderInContext(stagingArea *model.StagingArea,
 		}
 	}
 
-	err = v.validateMedianTime(stagingArea, header)
-	if err != nil {
-		return err
+	if !spvOnlyValidation {
+		err = v.validateMedianTime(stagingArea, header)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = v.checkMergeSizeLimit(stagingArea, blockHash)
@@ -63,7 +65,10 @@ func (v *blockValidator) ValidateHeaderInContext(stagingArea *model.StagingArea,
 		return err
 	}
 	if !hasReachabilityData {
-		blockLevel := pow.BlockLevel(header)
+		blockLevel := 0
+		if !spvOnlyValidation {
+			blockLevel = pow.BlockLevel(header)
+		}
 		for i := 0; i <= blockLevel; i++ {
 			err = v.reachabilityManagers[i].AddBlock(stagingArea, blockHash)
 			if err != nil {
@@ -72,37 +77,40 @@ func (v *blockValidator) ValidateHeaderInContext(stagingArea *model.StagingArea,
 		}
 	}
 
-	if !isBlockWithTrustedData {
-		err = v.checkIndirectParents(stagingArea, header)
+	if !spvOnlyValidation {
+
+		if !isBlockWithTrustedData {
+			err = v.checkIndirectParents(stagingArea, header)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = v.mergeDepthManager.CheckBoundedMergeDepth(stagingArea, blockHash, isBlockWithTrustedData)
 		if err != nil {
 			return err
 		}
-	}
 
-	err = v.mergeDepthManager.CheckBoundedMergeDepth(stagingArea, blockHash, isBlockWithTrustedData)
-	if err != nil {
-		return err
-	}
-
-	err = v.checkDAAScore(stagingArea, blockHash, header)
-	if err != nil {
-		return err
-	}
-
-	err = v.checkBlueWork(stagingArea, blockHash, header)
-	if err != nil {
-		return err
-	}
-
-	err = v.checkHeaderBlueScore(stagingArea, blockHash, header)
-	if err != nil {
-		return err
-	}
-
-	if !isBlockWithTrustedData {
-		err = v.validateHeaderPruningPoint(stagingArea, blockHash)
+		err = v.checkDAAScore(stagingArea, blockHash, header)
 		if err != nil {
 			return err
+		}
+
+		err = v.checkBlueWork(stagingArea, blockHash, header)
+		if err != nil {
+			return err
+		}
+
+		err = v.checkHeaderBlueScore(stagingArea, blockHash, header)
+		if err != nil {
+			return err
+		}
+
+		if !isBlockWithTrustedData {
+			err = v.validateHeaderPruningPoint(stagingArea, blockHash)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

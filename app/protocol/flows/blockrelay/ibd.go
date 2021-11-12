@@ -54,11 +54,41 @@ func (flow *handleRelayInvsFlow) runIBDIfNotRunning(block *externalapi.DomainBlo
 		if err != nil {
 			return err
 		}
-	} else {
-		err = flow.syncPruningPointFutureHeaders(flow.Domain().Consensus(), highestSharedBlockHash, highHash)
+	}
+
+	if highestSharedBlockHash == nil {
+		highestSharedBlockHash, err = flow.Domain().Consensus().PruningPoint()
 		if err != nil {
 			return err
 		}
+	}
+
+	err = flow.syncPruningPointFutureHeaders(flow.Domain().Consensus(), highestSharedBlockHash, highHash, false)
+	if err != nil {
+		return err
+	}
+
+	pruningPoint, err := flow.Domain().Consensus().PruningPoint()
+	if err != nil {
+		return err
+	}
+
+	blockInfo, err := flow.Domain().Consensus().GetBlockInfo(pruningPoint)
+	if err != nil {
+		return err
+	}
+
+	if blockInfo.BlockStatus != externalapi.StatusUTXOValid {
+		log.Debugf("Syncing the current pruning point UTXO set")
+		syncedPruningPointUTXOSetSuccessfully, err := flow.syncPruningPointUTXOSet(flow.Domain().Consensus())
+		if err != nil {
+			return err
+		}
+		if !syncedPruningPointUTXOSetSuccessfully {
+			log.Debugf("Aborting IBD because the pruning point UTXO set failed to sync")
+			return nil
+		}
+		log.Debugf("Finished syncing the current pruning point UTXO set")
 	}
 
 	err = flow.syncMissingBlockBodies(highHash)
@@ -197,7 +227,7 @@ func (flow *handleRelayInvsFlow) fetchHighestHash(
 }
 
 func (flow *handleRelayInvsFlow) syncPruningPointFutureHeaders(consensus externalapi.Consensus, highestSharedBlockHash *externalapi.DomainHash,
-	highHash *externalapi.DomainHash) error {
+	highHash *externalapi.DomainHash, spvOnlyValidation bool) error {
 
 	log.Infof("Downloading headers from %s", flow.peer)
 
@@ -249,7 +279,7 @@ func (flow *handleRelayInvsFlow) syncPruningPointFutureHeaders(consensus externa
 				return nil
 			}
 			for _, header := range ibdBlocksMessage.BlockHeaders {
-				err = flow.processHeader(consensus, header)
+				err = flow.processHeader(consensus, header, spvOnlyValidation)
 				if err != nil {
 					return err
 				}
@@ -287,7 +317,7 @@ func (flow *handleRelayInvsFlow) receiveHeaders() (msgIBDBlock *appmessage.Block
 	}
 }
 
-func (flow *handleRelayInvsFlow) processHeader(consensus externalapi.Consensus, msgBlockHeader *appmessage.MsgBlockHeader) error {
+func (flow *handleRelayInvsFlow) processHeader(consensus externalapi.Consensus, msgBlockHeader *appmessage.MsgBlockHeader, spvOnlyValidation bool) error {
 	header := appmessage.BlockHeaderToDomainBlockHeader(msgBlockHeader)
 	block := &externalapi.DomainBlock{
 		Header:       header,
@@ -303,7 +333,12 @@ func (flow *handleRelayInvsFlow) processHeader(consensus externalapi.Consensus, 
 		log.Debugf("Block header %s is already in the DAG. Skipping...", blockHash)
 		return nil
 	}
-	_, err = consensus.ValidateAndInsertBlock(block, false)
+
+	if spvOnlyValidation {
+		_, err = consensus.ValidateAndInsertBlockWithSPVOnlyValidation(block)
+	} else {
+		_, err = consensus.ValidateAndInsertBlock(block, false)
+	}
 	if err != nil {
 		if !errors.As(err, &ruleerrors.RuleError{}) {
 			return errors.Wrapf(err, "failed to process header %s during IBD", blockHash)
@@ -321,6 +356,7 @@ func (flow *handleRelayInvsFlow) processHeader(consensus externalapi.Consensus, 
 }
 
 func (flow *handleRelayInvsFlow) validatePruningPointFutureHeaderTimestamps() error {
+	return nil
 	headerSelectedTipHash, err := flow.Domain().StagingConsensus().GetHeadersSelectedTip()
 	if err != nil {
 		return err

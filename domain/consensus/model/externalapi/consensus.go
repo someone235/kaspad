@@ -5,6 +5,7 @@ type Consensus interface {
 	Init(skipAddingGenesis bool) error
 	BuildBlock(coinbaseData *DomainCoinbaseData, transactions []*DomainTransaction) (*DomainBlock, error)
 	ValidateAndInsertBlock(block *DomainBlock, shouldValidateAgainstUTXO bool) (*BlockInsertionResult, error)
+	ValidateAndInsertBlockWithSPVOnlyValidation(block *DomainBlock) (*BlockInsertionResult, error)
 	ValidateAndInsertBlockWithTrustedData(block *BlockWithTrustedData, validateUTXO bool) (*BlockInsertionResult, error)
 	ValidateTransactionAndPopulateWithConsensusData(transaction *DomainTransaction) error
 	ImportPruningPoints(pruningPoints []BlockHeader) error
@@ -46,4 +47,5 @@ type Consensus interface {
 	EstimateNetworkHashesPerSecond(startHash *DomainHash, windowSize int) (uint64, error)
 	PopulateMass(transaction *DomainTransaction)
 	ResolveVirtual() error
+	IsVirtualReady() (bool, error)
 }

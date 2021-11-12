@@ -32,7 +32,7 @@ func (bp *blockProcessor) validateAndInsertBlockWithTrustedData(stagingArea *mod
 	}
 
 	bp.daaBlocksStore.StageDAAScore(stagingArea, blockHash, block.DAAScore)
-	return bp.validateAndInsertBlock(stagingArea, block.Block, false, validateUTXO, true)
+	return bp.validateAndInsertBlock(stagingArea, block.Block, false, validateUTXO, true, false)
 }
 
 func (bp *blockProcessor) ghostdagDataWithoutPrunedBlocks(stagingArea *model.StagingArea,

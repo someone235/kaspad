@@ -23,7 +23,7 @@ func (v *blockValidator) validateHeaderPruningPoint(stagingArea *model.StagingAr
 	}
 
 	if !header.PruningPoint().Equal(expectedPruningPoint) {
-		return errors.Wrapf(ruleerrors.ErrUnexpectedPruningPoint, "block pruning point of %s is not the expected hash of %s", header.PruningPoint(), expectedPruningPoint)
+		return errors.Wrapf(ruleerrors.ErrUnexpectedPruningPoint, "block pruning point of %s is not the expected hash of %s. This probably happens because of a finality conflict", header.PruningPoint(), expectedPruningPoint)
 	}
 
 	return nil

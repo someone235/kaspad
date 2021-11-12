@@ -12,7 +12,7 @@ import (
 )
 
 func (v *blockValidator) ValidatePruningPointViolationAndProofOfWorkAndDifficulty(stagingArea *model.StagingArea,
-	blockHash *externalapi.DomainHash, isBlockWithTrustedData bool) error {
+	blockHash *externalapi.DomainHash, isBlockWithTrustedData, spvOnlyValidation bool) error {
 
 	onEnd := logger.LogAndMeasureExecutionTime(log, "ValidatePruningPointViolationAndProofOfWorkAndDifficulty")
 	defer onEnd()
@@ -32,7 +32,7 @@ func (v *blockValidator) ValidatePruningPointViolationAndProofOfWorkAndDifficult
 		return err
 	}
 
-	err = v.setParents(stagingArea, blockHash, header, isBlockWithTrustedData)
+	err = v.setParents(stagingArea, blockHash, header, isBlockWithTrustedData, spvOnlyValidation)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (v *blockValidator) ValidatePruningPointViolationAndProofOfWorkAndDifficult
 		return err
 	}
 
-	err = v.validateDifficulty(stagingArea, blockHash, isBlockWithTrustedData)
+	err = v.validateDifficulty(stagingArea, blockHash, isBlockWithTrustedData, spvOnlyValidation)
 	if err != nil {
 		return err
 	}
@@ -65,9 +65,14 @@ func (v *blockValidator) ValidatePruningPointViolationAndProofOfWorkAndDifficult
 func (v *blockValidator) setParents(stagingArea *model.StagingArea,
 	blockHash *externalapi.DomainHash,
 	header externalapi.BlockHeader,
-	isBlockWithTrustedData bool) error {
+	isBlockWithTrustedData, spvOnlyValidation bool) error {
 
-	for level := 0; level <= pow.BlockLevel(header); level++ {
+	blockLevel := 0
+	if !spvOnlyValidation {
+		blockLevel = pow.BlockLevel(header)
+	}
+
+	for level := 0; level <= blockLevel; level++ {
 		var parents []*externalapi.DomainHash
 		for _, parent := range header.ParentsAtLevel(level) {
 			_, err := v.ghostdagDataStores[level].Get(v.databaseContext, stagingArea, parent, false)
@@ -101,7 +106,7 @@ func (v *blockValidator) setParents(stagingArea *model.StagingArea,
 
 func (v *blockValidator) validateDifficulty(stagingArea *model.StagingArea,
 	blockHash *externalapi.DomainHash,
-	isBlockWithTrustedData bool) error {
+	isBlockWithTrustedData, spvOnlyValidation bool) error {
 
 	if !isBlockWithTrustedData {
 		// We need to calculate GHOSTDAG for the block in order to check its difficulty and blue work
@@ -116,7 +121,10 @@ func (v *blockValidator) validateDifficulty(stagingArea *model.StagingArea,
 		return err
 	}
 
-	blockLevel := pow.BlockLevel(header)
+	blockLevel := 0
+	if !spvOnlyValidation {
+		blockLevel = pow.BlockLevel(header)
+	}
 	for i := 1; i <= blockLevel; i++ {
 		err = v.ghostdagManagers[i].GHOSTDAG(stagingArea, blockHash)
 		if err != nil {
@@ -124,16 +132,18 @@ func (v *blockValidator) validateDifficulty(stagingArea *model.StagingArea,
 		}
 	}
 
-	// Ensure the difficulty specified in the block header matches
-	// the calculated difficulty based on the previous block and
-	// difficulty retarget rules.
-	expectedBits, err := v.difficultyManager.StageDAADataAndReturnRequiredDifficulty(stagingArea, blockHash, isBlockWithTrustedData)
-	if err != nil {
-		return err
-	}
+	if !spvOnlyValidation {
+		// Ensure the difficulty specified in the block header matches
+		// the calculated difficulty based on the previous block and
+		// difficulty retarget rules.
+		expectedBits, err := v.difficultyManager.StageDAADataAndReturnRequiredDifficulty(stagingArea, blockHash, isBlockWithTrustedData)
+		if err != nil {
+			return err
+		}
 
-	if header.Bits() != expectedBits {
-		return errors.Wrapf(ruleerrors.ErrUnexpectedDifficulty, "block difficulty of %d is not the expected value of %d", header.Bits(), expectedBits)
+		if header.Bits() != expectedBits {
+			return errors.Wrapf(ruleerrors.ErrUnexpectedDifficulty, "block difficulty of %d is not the expected value of %d", header.Bits(), expectedBits)
+		}
 	}
 
 	return nil

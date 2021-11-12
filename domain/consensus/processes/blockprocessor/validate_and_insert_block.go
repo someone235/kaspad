@@ -76,10 +76,14 @@ func (bp *blockProcessor) updateVirtualAcceptanceDataAfterImportingPruningPoint(
 }
 
 func (bp *blockProcessor) validateAndInsertBlock(stagingArea *model.StagingArea, block *externalapi.DomainBlock,
-	isPruningPoint bool, shouldValidateAgainstUTXO bool, isBlockWithTrustedData bool) (*externalapi.BlockInsertionResult, error) {
+	isPruningPoint, shouldValidateAgainstUTXO, isBlockWithTrustedData, spvOnlyValidation bool) (*externalapi.BlockInsertionResult, error) {
 
 	blockHash := consensushashing.HeaderHash(block.Header)
-	err := bp.validateBlock(stagingArea, block, isBlockWithTrustedData)
+	if spvOnlyValidation && len(block.Transactions) > 0 {
+		return nil, errors.Errorf("Cannot validate block %s with spvOnlyValidation because it's not a heady only block", blockHash)
+	}
+
+	err := bp.validateBlock(stagingArea, block, isBlockWithTrustedData, spvOnlyValidation)
 	if err != nil {
 		return nil, err
 	}
@@ -102,9 +106,30 @@ func (bp *blockProcessor) validateAndInsertBlock(stagingArea *model.StagingArea,
 		}
 	}
 
-	err = bp.headerTipsManager.AddHeaderTip(stagingArea, blockHash)
-	if err != nil {
-		return nil, err
+	shouldAllHeaderTip := false
+	if !hasHeaderSelectedTip {
+		shouldAllHeaderTip = true
+	} else {
+		pruningPoint, err := bp.pruningStore.PruningPoint(bp.databaseContext, stagingArea)
+		if err != nil {
+			return nil, err
+		}
+
+		isInSelectedParentChainOf, err := bp.dagTopologyManager.IsInSelectedParentChainOf(stagingArea, blockHash, pruningPoint)
+		if err != nil {
+			return nil, err
+		}
+
+		// Don't set blocks in the anticone of the pruning point as header selected tip.
+		shouldAllHeaderTip = isInSelectedParentChainOf
+	}
+
+	if shouldAllHeaderTip {
+		// Don't set blocks in the anticone of the pruning point as header selected tip.
+		err = bp.headerTipsManager.AddHeaderTip(stagingArea, blockHash)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var selectedParentChainChanges *externalapi.SelectedChainPath
@@ -274,7 +299,7 @@ func (bp *blockProcessor) validatePreProofOfWork(stagingArea *model.StagingArea,
 	return nil
 }
 
-func (bp *blockProcessor) validatePostProofOfWork(stagingArea *model.StagingArea, block *externalapi.DomainBlock, isBlockWithTrustedData bool) error {
+func (bp *blockProcessor) validatePostProofOfWork(stagingArea *model.StagingArea, block *externalapi.DomainBlock, isBlockWithTrustedData, spvOnlyValidation bool) error {
 	blockHash := consensushashing.BlockHash(block)
 
 	isHeaderOnlyBlock := isHeaderOnlyBlock(block)
@@ -292,7 +317,7 @@ func (bp *blockProcessor) validatePostProofOfWork(stagingArea *model.StagingArea
 	}
 
 	if !hasValidatedHeader {
-		err = bp.blockValidator.ValidateHeaderInContext(stagingArea, blockHash, isBlockWithTrustedData)
+		err = bp.blockValidator.ValidateHeaderInContext(stagingArea, blockHash, isBlockWithTrustedData, spvOnlyValidation)
 		if err != nil {
 			return err
 		}

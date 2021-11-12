@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (bp *blockProcessor) validateBlock(stagingArea *model.StagingArea, block *externalapi.DomainBlock, isBlockWithTrustedData bool) error {
+func (bp *blockProcessor) validateBlock(stagingArea *model.StagingArea, block *externalapi.DomainBlock, isBlockWithTrustedData, spvOnlyValidation bool) error {
 	blockHash := consensushashing.HeaderHash(block.Header)
 	log.Debugf("Validating block %s", blockHash)
 
@@ -36,16 +36,18 @@ func (bp *blockProcessor) validateBlock(stagingArea *model.StagingArea, block *e
 		log.Debugf("Block %s header is already known, so no need to stage it", blockHash)
 	}
 
-	// If any validation until (included) proof-of-work fails, simply
-	// return an error without writing anything in the database.
-	// This is to prevent spamming attacks.
-	err = bp.validatePreProofOfWork(stagingArea, block)
-	if err != nil {
-		return err
+	if !spvOnlyValidation {
+		// If any validation until (included) proof-of-work fails, simply
+		// return an error without writing anything in the database.
+		// This is to prevent spamming attacks.
+		err = bp.validatePreProofOfWork(stagingArea, block)
+		if err != nil {
+			return err
+		}
 	}
 
 	if !hasValidatedHeader {
-		err = bp.blockValidator.ValidatePruningPointViolationAndProofOfWorkAndDifficulty(stagingArea, blockHash, isBlockWithTrustedData)
+		err = bp.blockValidator.ValidatePruningPointViolationAndProofOfWorkAndDifficulty(stagingArea, blockHash, isBlockWithTrustedData, spvOnlyValidation)
 		if err != nil {
 			return err
 		}
@@ -53,7 +55,7 @@ func (bp *blockProcessor) validateBlock(stagingArea *model.StagingArea, block *e
 
 	// If in-context validations fail, discard all changes and store the
 	// block with StatusInvalid.
-	err = bp.validatePostProofOfWork(stagingArea, block, isBlockWithTrustedData)
+	err = bp.validatePostProofOfWork(stagingArea, block, isBlockWithTrustedData, spvOnlyValidation)
 	if err != nil {
 		if errors.As(err, &ruleerrors.RuleError{}) {
 			// We mark invalid blocks with status externalapi.StatusInvalid except in the

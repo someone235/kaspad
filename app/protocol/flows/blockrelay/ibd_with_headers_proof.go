@@ -36,6 +36,8 @@ func (flow *handleRelayInvsFlow) ibdWithHeadersProof(highHash *externalapi.Domai
 		return err
 	}
 
+	//panic("here")
+
 	return nil
 }
 
@@ -76,7 +78,7 @@ func (flow *handleRelayInvsFlow) checkIfHighHashHasMoreBlueWorkThanSelectedTipAn
 	return highBlock.Header.BlueWork().Cmp(headersSelectedTipInfo.BlueWork) > 0, nil
 }
 
-func (flow *handleRelayInvsFlow) syncAndValidatePruningPointProof() (*externalapi.DomainHash, error) {
+func (flow *handleRelayInvsFlow) downloadPruningPointProof() (*externalapi.PruningPointProof, error) {
 	log.Infof("Downloading the pruning point proof from %s", flow.peer)
 	err := flow.outgoingRoute.Enqueue(appmessage.NewMsgRequestPruningPointProof())
 	if err != nil {
@@ -91,8 +93,11 @@ func (flow *handleRelayInvsFlow) syncAndValidatePruningPointProof() (*externalap
 		return nil, protocolerrors.Errorf(true, "received unexpected message type. "+
 			"expected: %s, got: %s", appmessage.CmdPruningPointProof, message.Command())
 	}
-	pruningPointProof := appmessage.MsgPruningPointProofToDomainPruningPointProof(pruningPointProofMessage)
-	err = flow.Domain().Consensus().ValidatePruningPointProof(pruningPointProof)
+	return appmessage.MsgPruningPointProofToDomainPruningPointProof(pruningPointProofMessage), nil
+}
+
+func (flow *handleRelayInvsFlow) validatePruningPointProof(pruningPointProof *externalapi.PruningPointProof) (*externalapi.DomainHash, error) {
+	err := flow.Domain().Consensus().ValidatePruningPointProof(pruningPointProof)
 	if err != nil {
 		if errors.As(err, &ruleerrors.RuleError{}) {
 			return nil, protocolerrors.Wrapf(true, err, "pruning point proof validation failed")
@@ -109,12 +114,17 @@ func (flow *handleRelayInvsFlow) syncAndValidatePruningPointProof() (*externalap
 }
 
 func (flow *handleRelayInvsFlow) downloadHeadersAndPruningUTXOSet(highHash *externalapi.DomainHash) error {
-	proofPruningPoint, err := flow.syncAndValidatePruningPointProof()
+	pruningPointProof, err := flow.downloadPruningPointProof()
 	if err != nil {
 		return err
 	}
 
-	err = flow.syncPruningPointsAndPruningPointAnticone(proofPruningPoint)
+	proofPruningPoint, err := flow.validatePruningPointProof(pruningPointProof)
+	if err != nil {
+		return err
+	}
+
+	pruningPoints, blocksWithTrustedData, err := flow.syncPruningPointsAndPruningPointAnticone(proofPruningPoint)
 	if err != nil {
 		return err
 	}
@@ -125,7 +135,7 @@ func (flow *handleRelayInvsFlow) downloadHeadersAndPruningUTXOSet(highHash *exte
 		return protocolerrors.Errorf(true, "the genesis pruning point violates finality")
 	}
 
-	err = flow.syncPruningPointFutureHeaders(flow.Domain().StagingConsensus(), proofPruningPoint, highHash)
+	err = flow.syncPruningPointFutureHeaders(flow.Domain().StagingConsensus(), proofPruningPoint, highHash, true)
 	if err != nil {
 		return err
 	}
@@ -146,53 +156,83 @@ func (flow *handleRelayInvsFlow) downloadHeadersAndPruningUTXOSet(highHash *exte
 		return err
 	}
 
-	log.Debugf("Syncing the current pruning point UTXO set")
-	syncedPruningPointUTXOSetSuccessfully, err := flow.syncPruningPointUTXOSet(flow.Domain().StagingConsensus(), proofPruningPoint)
+	//log.Infof("Checking if the suggested pruning point %s is compatible to the node DAG", proofPruningPoint)
+	//isValid, err := flow.Domain().StagingConsensus().IsValidPruningPoint(proofPruningPoint)
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//if !isValid {
+	//	return protocolerrors.Errorf(true, "invalid pruning point %s", proofPruningPoint)
+	//}
+
+	err = flow.Domain().DeleteStagingConsensus()
 	if err != nil {
 		return err
 	}
-	if !syncedPruningPointUTXOSetSuccessfully {
-		log.Debugf("Aborting IBD because the pruning point UTXO set failed to sync")
-		return nil
+
+	err = flow.Domain().InitStagingConsensus()
+	if err != nil {
+		return err
 	}
-	log.Debugf("Finished syncing the current pruning point UTXO set")
+
+	err = flow.Domain().StagingConsensus().ApplyPruningPointProof(pruningPointProof)
+	if err != nil {
+		return err
+	}
+
+	err = flow.Domain().StagingConsensus().ImportPruningPoints(pruningPoints)
+	if err != nil {
+		return err
+	}
+
+	for i, block := range blocksWithTrustedData {
+		log.Criticalf("TRUSTED %d %s", i, block.Block.Header.BlockHash())
+		err := flow.processBlockWithTrustedData(flow.Domain().StagingConsensus(), block)
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
-func (flow *handleRelayInvsFlow) syncPruningPointsAndPruningPointAnticone(proofPruningPoint *externalapi.DomainHash) error {
+func (flow *handleRelayInvsFlow) syncPruningPointsAndPruningPointAnticone(proofPruningPoint *externalapi.DomainHash) ([]externalapi.BlockHeader, []*appmessage.MsgBlockWithTrustedData, error) {
 	log.Infof("Downloading the past pruning points and the pruning point anticone from %s", flow.peer)
 	err := flow.outgoingRoute.Enqueue(appmessage.NewMsgRequestPruningPointAndItsAnticone())
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
-	err = flow.validateAndInsertPruningPoints(proofPruningPoint)
+	pruningPoints, err := flow.validateAndInsertPruningPoints(proofPruningPoint)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 
 	pruningPointWithMetaData, done, err := flow.receiveBlockWithTrustedData()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
-
 	if done {
-		return protocolerrors.Errorf(true, "got `done` message before receiving the pruning point")
+		return nil, nil, protocolerrors.Errorf(true, "got `done` message before receiving the pruning point")
 	}
 
 	if !pruningPointWithMetaData.Block.Header.BlockHash().Equal(proofPruningPoint) {
-		return protocolerrors.Errorf(true, "first block with trusted data is not the pruning point")
+		return nil, nil, protocolerrors.Errorf(true, "first block with trusted data is not the pruning point")
 	}
 
 	err = flow.processBlockWithTrustedData(flow.Domain().StagingConsensus(), pruningPointWithMetaData)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
+
+	blocksWithTrustedData := make([]*appmessage.MsgBlockWithTrustedData, 0, flow.Config().NetParams().K+1)
+	blocksWithTrustedData = append(blocksWithTrustedData, pruningPointWithMetaData)
 
 	for {
 		blockWithTrustedData, done, err := flow.receiveBlockWithTrustedData()
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
 
 		if done {
@@ -201,12 +241,14 @@ func (flow *handleRelayInvsFlow) syncPruningPointsAndPruningPointAnticone(proofP
 
 		err = flow.processBlockWithTrustedData(flow.Domain().StagingConsensus(), blockWithTrustedData)
 		if err != nil {
-			return err
+			return nil, nil, err
 		}
+
+		blocksWithTrustedData = append(blocksWithTrustedData, blockWithTrustedData)
 	}
 
 	log.Infof("Finished downloading pruning point and its anticone from %s", flow.peer)
-	return nil
+	return pruningPoints, blocksWithTrustedData, nil
 }
 
 func (flow *handleRelayInvsFlow) processBlockWithTrustedData(
@@ -253,19 +295,19 @@ func (flow *handleRelayInvsFlow) receivePruningPoints() (*appmessage.MsgPruningP
 	return msgPruningPoints, nil
 }
 
-func (flow *handleRelayInvsFlow) validateAndInsertPruningPoints(proofPruningPoint *externalapi.DomainHash) error {
+func (flow *handleRelayInvsFlow) validateAndInsertPruningPoints(proofPruningPoint *externalapi.DomainHash) ([]externalapi.BlockHeader, error) {
 	currentPruningPoint, err := flow.Domain().Consensus().PruningPoint()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if currentPruningPoint.Equal(proofPruningPoint) {
-		return protocolerrors.Errorf(true, "the proposed pruning point is the same as the current pruning point")
+		return nil, protocolerrors.Errorf(true, "the proposed pruning point is the same as the current pruning point")
 	}
 
 	pruningPoints, err := flow.receivePruningPoints()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	headers := make([]externalapi.BlockHeader, len(pruningPoints.Headers))
@@ -275,42 +317,36 @@ func (flow *handleRelayInvsFlow) validateAndInsertPruningPoints(proofPruningPoin
 
 	arePruningPointsViolatingFinality, err := flow.Domain().Consensus().ArePruningPointsViolatingFinality(headers)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if arePruningPointsViolatingFinality {
 		// TODO: Find a better way to deal with finality conflicts.
-		return protocolerrors.Errorf(false, "pruning points are violating finality")
+		return nil, protocolerrors.Errorf(false, "pruning points are violating finality")
 	}
 
 	lastPruningPoint := consensushashing.HeaderHash(headers[len(headers)-1])
 	if !lastPruningPoint.Equal(proofPruningPoint) {
-		return protocolerrors.Errorf(true, "the proof pruning point is not equal to the last pruning "+
+		return nil, protocolerrors.Errorf(true, "the proof pruning point is not equal to the last pruning "+
 			"point in the list")
 	}
 
 	err = flow.Domain().StagingConsensus().ImportPruningPoints(headers)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return headers, nil
 }
 
-func (flow *handleRelayInvsFlow) syncPruningPointUTXOSet(consensus externalapi.Consensus,
-	pruningPoint *externalapi.DomainHash) (bool, error) {
+func (flow *handleRelayInvsFlow) syncPruningPointUTXOSet(consensus externalapi.Consensus) (bool, error) {
 
-	log.Infof("Checking if the suggested pruning point %s is compatible to the node DAG", pruningPoint)
-	isValid, err := flow.Domain().StagingConsensus().IsValidPruningPoint(pruningPoint)
+	log.Info("Fetching the pruning point UTXO set")
+	pruningPoint, err := consensus.PruningPoint()
 	if err != nil {
 		return false, err
 	}
 
-	if !isValid {
-		return false, protocolerrors.Errorf(true, "invalid pruning point %s", pruningPoint)
-	}
-
-	log.Info("Fetching the pruning point UTXO set")
 	isSuccessful, err := flow.fetchMissingUTXOSet(consensus, pruningPoint)
 	if err != nil {
 		return false, err
@@ -327,7 +363,7 @@ func (flow *handleRelayInvsFlow) syncPruningPointUTXOSet(consensus externalapi.C
 
 func (flow *handleRelayInvsFlow) fetchMissingUTXOSet(consensus externalapi.Consensus, pruningPointHash *externalapi.DomainHash) (succeed bool, err error) {
 	defer func() {
-		err := flow.Domain().StagingConsensus().ClearImportedPruningPointData()
+		err := consensus.ClearImportedPruningPointData()
 		if err != nil {
 			panic(fmt.Sprintf("failed to clear imported pruning point data: %s", err))
 		}
@@ -346,7 +382,7 @@ func (flow *handleRelayInvsFlow) fetchMissingUTXOSet(consensus externalapi.Conse
 		return false, nil
 	}
 
-	err = flow.Domain().StagingConsensus().ValidateAndInsertImportedPruningPoint(pruningPointHash)
+	err = consensus.ValidateAndInsertImportedPruningPoint(pruningPointHash)
 	if err != nil {
 		// TODO: Find a better way to deal with finality conflicts.
 		if errors.Is(err, ruleerrors.ErrSuggestedPruningViolatesFinality) {

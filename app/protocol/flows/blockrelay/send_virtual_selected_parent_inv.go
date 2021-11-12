@@ -18,6 +18,16 @@ type SendVirtualSelectedParentInvContext interface {
 func SendVirtualSelectedParentInv(context SendVirtualSelectedParentInvContext,
 	outgoingRoute *router.Route, peer *peerpkg.Peer) error {
 
+	isVirtualReady, err := context.Domain().Consensus().IsVirtualReady()
+	if err != nil {
+		return err
+	}
+
+	if !isVirtualReady {
+		log.Debugf("Not sending virtual selected parent inv to %s because virtual is not ready", peer)
+		return nil
+	}
+
 	virtualSelectedParent, err := context.Domain().Consensus().GetVirtualSelectedParent()
 	if err != nil {
 		return err
