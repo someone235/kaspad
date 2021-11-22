@@ -241,8 +241,8 @@ func (v *blockValidator) checkHeaderBlueScore(stagingArea *model.StagingArea, bl
 		return err
 	}
 	if header.BlueScore() != ghostdagData.BlueScore() {
-		return errors.Wrapf(ruleerrors.ErrUnexpectedBlueWork, "block blue work of %d is not the expected "+
-			"value of %d", header.BlueWork(), ghostdagData.BlueScore())
+		return errors.Wrapf(ruleerrors.ErrUnexpectedBlueWork, "block blue score of %d is not the expected "+
+			"value of %d", header.BlueScore(), ghostdagData.BlueScore())
 	}
 	return nil
 }

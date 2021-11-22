@@ -25,9 +25,24 @@ func (csm *consensusStateManager) updateVirtual(stagingArea *model.StagingArea, 
 	}
 
 	log.Debugf("Picking virtual parents from tips len: %d", len(tips))
-	virtualParents, err := csm.pickVirtualParents(stagingArea, tips)
+	AvirtualParents, err := csm.pickVirtualParents(stagingArea, tips)
 	if err != nil {
 		return nil, nil, err
+	}
+	virtualParents := make([]*externalapi.DomainHash, 0, len(AvirtualParents))
+	root, err := externalapi.NewDomainHashFromString("e5cb00d110632775e8fa0b9b2aea32cf93b739d866fd703e10c8c7bab848d31b")
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, parent := range AvirtualParents {
+		isAncestorOf, err := csm.dagTopologyManager.IsAncestorOf(stagingArea, root, parent)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if isAncestorOf {
+			virtualParents = append(virtualParents, parent)
+		}
 	}
 	log.Debugf("Picked virtual parents: %s", virtualParents)
 

@@ -271,6 +271,7 @@ func (bb *blockBuilder) minBlockTime(stagingArea *model.StagingArea, hash *exter
 }
 
 func (bb *blockBuilder) newBlockDifficulty(stagingArea *model.StagingArea) (uint32, error) {
+	//return 504870927, nil
 	return bb.difficultyManager.RequiredDifficulty(stagingArea, model.VirtualBlockHash)
 }
 
@@ -316,10 +317,12 @@ func (bb *blockBuilder) newBlockUTXOCommitment(stagingArea *model.StagingArea) (
 }
 
 func (bb *blockBuilder) newBlockDAAScore(stagingArea *model.StagingArea) (uint64, error) {
+	//return 1298998, nil
 	return bb.daaBlocksStore.DAAScore(bb.databaseContext, stagingArea, model.VirtualBlockHash)
 }
 
 func (bb *blockBuilder) newBlockBlueWork(stagingArea *model.StagingArea) (*big.Int, error) {
+	//return big.NewInt(920892440452121), nil
 	virtualGHOSTDAGData, err := bb.ghostdagDataStore.Get(bb.databaseContext, stagingArea, model.VirtualBlockHash, false)
 	if err != nil {
 		return nil, err
@@ -328,6 +331,7 @@ func (bb *blockBuilder) newBlockBlueWork(stagingArea *model.StagingArea) (*big.I
 }
 
 func (bb *blockBuilder) newBlockBlueScore(stagingArea *model.StagingArea) (uint64, error) {
+	//return 1234628, nil
 	virtualGHOSTDAGData, err := bb.ghostdagDataStore.Get(bb.databaseContext, stagingArea, model.VirtualBlockHash, false)
 	if err != nil {
 		return 0, err

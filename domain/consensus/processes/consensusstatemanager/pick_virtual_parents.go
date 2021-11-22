@@ -34,6 +34,7 @@ func (csm *consensusStateManager) pickVirtualParents(stagingArea *model.StagingA
 		return nil, err
 	}
 	log.Debugf("The selected parent of the virtual is: %s", virtualSelectedParent)
+	//return []*externalapi.DomainHash{virtualSelectedParent}, nil
 
 	// Limit to maxBlockParents*3 candidates, that way we don't go over thousands of tips when the network isn't healthy.
 	// There's no specific reason for a factor of 3, and its not a consensus rule, just an estimation saying we probably

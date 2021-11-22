@@ -139,7 +139,7 @@ func (flow *handleRelayInvsFlow) start() error {
 		if err != nil {
 			return err
 		}
-		log.Infof("Accepted block %s via relay", inv.Hash)
+		log.Infof("Accepted block %s from %s via relay", flow.peer, inv.Hash)
 		err = flow.OnNewBlock(block, blockInsertionResult)
 		if err != nil {
 			return err

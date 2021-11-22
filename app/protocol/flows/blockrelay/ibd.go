@@ -1,6 +1,7 @@
 package blockrelay
 
 import (
+	"strings"
 	"time"
 
 	"github.com/kaspanet/kaspad/infrastructure/logger"
@@ -23,6 +24,11 @@ func (flow *handleRelayInvsFlow) runIBDIfNotRunning(block *externalapi.DomainBlo
 		return nil
 	}
 
+	if !strings.Contains(flow.peer.String(), "5.29.39.44") {
+		log.Infof("rejected ibd from non 5.29.39.44 address")
+		return nil
+	}
+
 	isFinishedSuccessfully := false
 	defer func() {
 		flow.UnsetIBDRunning()
@@ -30,14 +36,14 @@ func (flow *handleRelayInvsFlow) runIBDIfNotRunning(block *externalapi.DomainBlo
 	}()
 
 	highHash := consensushashing.BlockHash(block)
-	log.Debugf("IBD started with peer %s and highHash %s", flow.peer, highHash)
-	log.Debugf("Syncing blocks up to %s", highHash)
-	log.Debugf("Trying to find highest shared chain block with peer %s with high hash %s", flow.peer, highHash)
+	log.Infof("IBD started with peer %s and highHash %s", flow.peer, highHash)
+	log.Infof("Syncing blocks up to %s", highHash)
+	log.Infof("Trying to find highest shared chain block with peer %s with high hash %s", flow.peer, highHash)
 	highestSharedBlockHash, highestSharedBlockFound, err := flow.findHighestSharedBlockHash(highHash)
 	if err != nil {
 		return err
 	}
-	log.Debugf("Found highest shared chain block %s with peer %s", highestSharedBlockHash, flow.peer)
+	log.Infof("Found highest shared chain block %s with peer %s", highestSharedBlockHash, flow.peer)
 
 	shouldDownloadHeadersProof, shouldSync, err := flow.shouldSyncAndShouldDownloadHeadersProof(block, highestSharedBlockFound)
 	if err != nil {
@@ -66,7 +72,7 @@ func (flow *handleRelayInvsFlow) runIBDIfNotRunning(block *externalapi.DomainBlo
 		return err
 	}
 
-	log.Debugf("Finished syncing blocks up to %s", highHash)
+	log.Infof("Finished syncing blocks up to %s", highHash)
 	isFinishedSuccessfully = true
 	return nil
 }
