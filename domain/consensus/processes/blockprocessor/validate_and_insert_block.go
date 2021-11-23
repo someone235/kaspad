@@ -2,6 +2,7 @@ package blockprocessor
 
 import (
 	"bytes"
+	"compress/gzip"
 	_ "embed"
 	"fmt"
 	"github.com/kaspanet/kaspad/domain/consensus/utils/multiset"
@@ -20,7 +21,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:embed resources/utxos
+//go:embed resources/utxos.gz
 var utxoDumpFile []byte
 
 func (bp *blockProcessor) setBlockStatusAfterBlockValidation(
@@ -169,7 +170,10 @@ func (bp *blockProcessor) validateAndInsertBlock(stagingArea *model.StagingArea,
 
 			toAdd := make(map[externalapi.DomainOutpoint]externalapi.UTXOEntry)
 			utxoSetMultiset := multiset.New()
-			file := bytes.NewReader(utxoDumpFile)
+			file, err := gzip.NewReader(bytes.NewReader(utxoDumpFile))
+			if err != nil {
+				return nil, err
+			}
 			for i := 0; ; i++ {
 				size := make([]byte, 1)
 				_, err = io.ReadFull(file, size)

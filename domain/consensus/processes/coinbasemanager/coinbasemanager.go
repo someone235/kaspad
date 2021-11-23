@@ -186,6 +186,10 @@ func acceptanceDataFromArrayToMap(acceptanceData externalapi.AcceptanceData) map
 func (c *coinbaseManager) CalcBlockSubsidy(stagingArea *model.StagingArea,
 	blockHash *externalapi.DomainHash, blockPruningPoint *externalapi.DomainHash) (uint64, error) {
 
+	if blockHash.Equal(c.genesisHash) {
+		return c.subsidyGenesisReward, nil
+	}
+
 	return 1000 * constants.SompiPerKaspa, nil
 }
 
