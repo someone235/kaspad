@@ -105,7 +105,7 @@ func BlockLevel(header externalapi.BlockHeader) int {
 
 	proofOfWorkValue := NewState(header.ToMutable()).CalculateProofOfWorkValue()
 	for blockLevel := 0; ; blockLevel++ {
-		if blockLevel == constants.MaxBlockLevel || proofOfWorkValue.Bit(blockLevel+1) != 0 {
+		if blockLevel == constants.MaxBlockLevel || proofOfWorkValue.Bit(constants.BlockLevelOffset+blockLevel+1) != 0 {
 			return blockLevel
 		}
 	}
