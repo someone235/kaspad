@@ -26,7 +26,7 @@ type pruningProofManager struct {
 
 	dagTopologyManagers  []model.DAGTopologyManager
 	ghostdagManagers     []model.GHOSTDAGManager
-	reachabilityManagers []model.ReachabilityManager
+	reachabilityManager  model.ReachabilityManager
 	dagTraversalManagers []model.DAGTraversalManager
 	parentsManager       model.ParentsManager
 
@@ -51,7 +51,7 @@ func New(
 
 	dagTopologyManagers []model.DAGTopologyManager,
 	ghostdagManagers []model.GHOSTDAGManager,
-	reachabilityManagers []model.ReachabilityManager,
+	reachabilityManager model.ReachabilityManager,
 	dagTraversalManagers []model.DAGTraversalManager,
 	parentsManager model.ParentsManager,
 
@@ -71,7 +71,7 @@ func New(
 		databaseContext:      databaseContext,
 		dagTopologyManagers:  dagTopologyManagers,
 		ghostdagManagers:     ghostdagManagers,
-		reachabilityManagers: reachabilityManagers,
+		reachabilityManager:  reachabilityManager,
 		dagTraversalManagers: dagTraversalManagers,
 		parentsManager:       parentsManager,
 
@@ -680,15 +680,17 @@ func (ppm *pruningProofManager) ApplyPruningPointProof(stagingArea *model.Stagin
 				}
 			}
 
-			err = ppm.reachabilityManagers[blockLevel].AddBlock(stagingArea, blockHash)
-			if err != nil {
-				return err
-			}
-
-			if selectedTip.Equal(blockHash) {
-				err := ppm.reachabilityManagers[blockLevel].UpdateReindexRoot(stagingArea, selectedTip)
+			if blockLevel == 0 {
+				err = ppm.reachabilityManager.AddBlock(stagingArea, blockHash)
 				if err != nil {
 					return err
+				}
+
+				if selectedTip.Equal(blockHash) {
+					err := ppm.reachabilityManager.UpdateReindexRoot(stagingArea, selectedTip)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
