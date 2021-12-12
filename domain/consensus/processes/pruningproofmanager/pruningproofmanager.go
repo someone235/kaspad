@@ -30,12 +30,13 @@ type pruningProofManager struct {
 	dagTraversalManagers []model.DAGTraversalManager
 	parentsManager       model.ParentsManager
 
-	ghostdagDataStores  []model.GHOSTDAGDataStore
-	pruningStore        model.PruningStore
-	blockHeaderStore    model.BlockHeaderStore
-	blockStatusStore    model.BlockStatusStore
-	finalityStore       model.FinalityStore
-	consensusStateStore model.ConsensusStateStore
+	ghostdagDataStores    []model.GHOSTDAGDataStore
+	pruningStore          model.PruningStore
+	blockHeaderStore      model.BlockHeaderStore
+	blockStatusStore      model.BlockStatusStore
+	finalityStore         model.FinalityStore
+	consensusStateStore   model.ConsensusStateStore
+	reachabilityDataStore model.ReachabilityDataStore
 
 	genesisHash   *externalapi.DomainHash
 	k             externalapi.KType
@@ -61,6 +62,7 @@ func New(
 	blockStatusStore model.BlockStatusStore,
 	finalityStore model.FinalityStore,
 	consensusStateStore model.ConsensusStateStore,
+	reachabilityDataStore model.ReachabilityDataStore,
 
 	genesisHash *externalapi.DomainHash,
 	k externalapi.KType,
@@ -75,12 +77,13 @@ func New(
 		dagTraversalManagers: dagTraversalManagers,
 		parentsManager:       parentsManager,
 
-		ghostdagDataStores:  ghostdagDataStores,
-		pruningStore:        pruningStore,
-		blockHeaderStore:    blockHeaderStore,
-		blockStatusStore:    blockStatusStore,
-		finalityStore:       finalityStore,
-		consensusStateStore: consensusStateStore,
+		ghostdagDataStores:    ghostdagDataStores,
+		pruningStore:          pruningStore,
+		blockHeaderStore:      blockHeaderStore,
+		blockStatusStore:      blockStatusStore,
+		finalityStore:         finalityStore,
+		consensusStateStore:   consensusStateStore,
+		reachabilityDataStore: reachabilityDataStore,
 
 		genesisHash:   genesisHash,
 		k:             k,
@@ -680,12 +683,19 @@ func (ppm *pruningProofManager) ApplyPruningPointProof(stagingArea *model.Stagin
 				}
 			}
 
-			if blockLevel == 0 {
+			hasReachabilityData, err := ppm.reachabilityDataStore.HasReachabilityData(ppm.databaseContext, stagingArea, blockHash)
+			if err != nil {
+				return err
+			}
+
+			if !hasReachabilityData {
 				err = ppm.reachabilityManager.AddBlock(stagingArea, blockHash)
 				if err != nil {
 					return err
 				}
+			}
 
+			if blockLevel == 0 {
 				if selectedTip.Equal(blockHash) {
 					err := ppm.reachabilityManager.UpdateReindexRoot(stagingArea, selectedTip)
 					if err != nil {

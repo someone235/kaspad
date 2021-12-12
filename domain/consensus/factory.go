@@ -422,6 +422,7 @@ func (f *factory) NewConsensus(config *Config, db infrastructuredatabase.Databas
 		blockStatusStore,
 		finalityStore,
 		consensusStateStore,
+		reachabilityDataStore,
 
 		genesisHash,
 		config.K,
