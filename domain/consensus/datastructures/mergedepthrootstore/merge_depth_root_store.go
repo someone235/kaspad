@@ -11,7 +11,7 @@ var bucketName = []byte("merge-depth-roots")
 
 type mergeDepthRootStore struct {
 	shardID model.StagingShardID
-	cache   *lrucache.LRUCache
+	cache   *lrucache.LRUCache[*externalapi.DomainHash]
 	bucket  model.DBBucket
 }
 
@@ -19,7 +19,7 @@ type mergeDepthRootStore struct {
 func New(prefixBucket model.DBBucket, cacheSize int, preallocate bool) model.MergeDepthRootStore {
 	return &mergeDepthRootStore{
 		shardID: staging.GenerateShardingID(),
-		cache:   lrucache.New(cacheSize, preallocate),
+		cache:   lrucache.New[*externalapi.DomainHash](cacheSize, preallocate),
 		bucket:  prefixBucket.Bucket(bucketName),
 	}
 }
@@ -38,7 +38,7 @@ func (mdrs *mergeDepthRootStore) MergeDepthRoot(dbContext model.DBReader, stagin
 	}
 
 	if root, ok := mdrs.cache.Get(blockHash); ok {
-		return root.(*externalapi.DomainHash), nil
+		return root, nil
 	}
 
 	rootBytes, err := dbContext.Get(mdrs.hashAsKey(blockHash))

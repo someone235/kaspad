@@ -20,7 +20,7 @@ var highestChainBlockIndexKeyName = []byte("highest-chain-block-index")
 type headersSelectedChainStore struct {
 	shardID                     model.StagingShardID
 	cacheByIndex                *lrucacheuint64tohash.LRUCache
-	cacheByHash                 *lrucache.LRUCache
+	cacheByHash                 *lrucache.LRUCache[uint64]
 	cacheHighestChainBlockIndex uint64
 	bucketChainBlockHashByIndex model.DBBucket
 	bucketChainBlockIndexByHash model.DBBucket
@@ -32,7 +32,7 @@ func New(prefixBucket model.DBBucket, cacheSize int, preallocate bool) model.Hea
 	return &headersSelectedChainStore{
 		shardID:                     staging.GenerateShardingID(),
 		cacheByIndex:                lrucacheuint64tohash.New(cacheSize, preallocate),
-		cacheByHash:                 lrucache.New(cacheSize, preallocate),
+		cacheByHash:                 lrucache.New[uint64](cacheSize, preallocate),
 		bucketChainBlockHashByIndex: prefixBucket.Bucket(bucketChainBlockHashByIndexName),
 		bucketChainBlockIndexByHash: prefixBucket.Bucket(bucketChainBlockIndexByHashName),
 		highestChainBlockIndexKey:   prefixBucket.Key(highestChainBlockIndexKeyName),
@@ -93,7 +93,7 @@ func (hscs *headersSelectedChainStore) GetIndexByHash(dbContext model.DBReader, 
 	}
 
 	if index, ok := hscs.cacheByHash.Get(blockHash); ok {
-		return index.(uint64), nil
+		return index, nil
 	}
 
 	indexBytes, err := dbContext.Get(hscs.hashAsKey(blockHash))

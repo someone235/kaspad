@@ -14,7 +14,7 @@ var bucketName = []byte("block-relations")
 // blockRelationStore represents a store of BlockRelations
 type blockRelationStore struct {
 	shardID model.StagingShardID
-	cache   *lrucache.LRUCache
+	cache   *lrucache.LRUCache[*model.BlockRelations]
 	bucket  model.DBBucket
 }
 
@@ -22,7 +22,7 @@ type blockRelationStore struct {
 func New(prefixBucket model.DBBucket, cacheSize int, preallocate bool) model.BlockRelationStore {
 	return &blockRelationStore{
 		shardID: staging.GenerateShardingID(),
-		cache:   lrucache.New(cacheSize, preallocate),
+		cache:   lrucache.New[*model.BlockRelations](cacheSize, preallocate),
 		bucket:  prefixBucket.Bucket(bucketName),
 	}
 }
@@ -45,7 +45,7 @@ func (brs *blockRelationStore) BlockRelation(dbContext model.DBReader, stagingAr
 	}
 
 	if blockRelations, ok := brs.cache.Get(blockHash); ok {
-		return blockRelations.(*model.BlockRelations).Clone(), nil
+		return blockRelations.Clone(), nil
 	}
 
 	blockRelationsBytes, err := dbContext.Get(brs.hashAsKey(blockHash))

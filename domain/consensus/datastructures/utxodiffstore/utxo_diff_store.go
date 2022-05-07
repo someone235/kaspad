@@ -16,8 +16,8 @@ var utxoDiffChildBucketName = []byte("utxo-diff-children")
 // utxoDiffStore represents a store of UTXODiffs
 type utxoDiffStore struct {
 	shardID             model.StagingShardID
-	utxoDiffCache       *lrucache.LRUCache
-	utxoDiffChildCache  *lrucache.LRUCache
+	utxoDiffCache       *lrucache.LRUCache[externalapi.UTXODiff]
+	utxoDiffChildCache  *lrucache.LRUCache[*externalapi.DomainHash]
 	utxoDiffBucket      model.DBBucket
 	utxoDiffChildBucket model.DBBucket
 }
@@ -26,8 +26,8 @@ type utxoDiffStore struct {
 func New(prefixBucket model.DBBucket, cacheSize int, preallocate bool) model.UTXODiffStore {
 	return &utxoDiffStore{
 		shardID:             staging.GenerateShardingID(),
-		utxoDiffCache:       lrucache.New(cacheSize, preallocate),
-		utxoDiffChildCache:  lrucache.New(cacheSize, preallocate),
+		utxoDiffCache:       lrucache.New[externalapi.UTXODiff](cacheSize, preallocate),
+		utxoDiffChildCache:  lrucache.New[*externalapi.DomainHash](cacheSize, preallocate),
 		utxoDiffBucket:      prefixBucket.Bucket(utxoDiffBucketName),
 		utxoDiffChildBucket: prefixBucket.Bucket(utxoDiffChildBucketName),
 	}
@@ -67,7 +67,7 @@ func (uds *utxoDiffStore) UTXODiff(dbContext model.DBReader, stagingArea *model.
 	}
 
 	if utxoDiff, ok := uds.utxoDiffCache.Get(blockHash); ok {
-		return utxoDiff.(externalapi.UTXODiff), nil
+		return utxoDiff, nil
 	}
 
 	utxoDiffBytes, err := dbContext.Get(uds.utxoDiffHashAsKey(blockHash))
@@ -92,7 +92,7 @@ func (uds *utxoDiffStore) UTXODiffChild(dbContext model.DBReader, stagingArea *m
 	}
 
 	if utxoDiffChild, ok := uds.utxoDiffChildCache.Get(blockHash); ok {
-		return utxoDiffChild.(*externalapi.DomainHash), nil
+		return utxoDiffChild, nil
 	}
 
 	utxoDiffChildBytes, err := dbContext.Get(uds.utxoDiffChildHashAsKey(blockHash))

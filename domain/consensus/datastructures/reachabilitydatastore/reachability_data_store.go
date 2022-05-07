@@ -17,7 +17,7 @@ var reachabilityReindexRootKeyName = []byte("reachability-reindex-root")
 // reachabilityDataStore represents a store of ReachabilityData
 type reachabilityDataStore struct {
 	shardID                      model.StagingShardID
-	reachabilityDataCache        *lrucache.LRUCache
+	reachabilityDataCache        *lrucache.LRUCache[model.ReachabilityData]
 	reachabilityReindexRootCache *externalapi.DomainHash
 
 	reachabilityDataBucket     model.DBBucket
@@ -28,7 +28,7 @@ type reachabilityDataStore struct {
 func New(prefixBucket model.DBBucket, cacheSize int, preallocate bool) model.ReachabilityDataStore {
 	return &reachabilityDataStore{
 		shardID:                    staging.GenerateShardingID(),
-		reachabilityDataCache:      lrucache.New(cacheSize, preallocate),
+		reachabilityDataCache:      lrucache.New[model.ReachabilityData](cacheSize, preallocate),
 		reachabilityDataBucket:     prefixBucket.Bucket(reachabilityDataBucketName),
 		reachabilityReindexRootKey: prefixBucket.Key(reachabilityReindexRootKeyName),
 	}
@@ -87,7 +87,7 @@ func (rds *reachabilityDataStore) ReachabilityData(dbContext model.DBReader, sta
 		if reachabilityData == nil {
 			return nil, errNotFound
 		}
-		return reachabilityData.(model.ReachabilityData), nil
+		return reachabilityData, nil
 	}
 
 	reachabilityDataBytes, err := dbContext.Get(rds.reachabilityDataBlockHashAsKey(blockHash))
