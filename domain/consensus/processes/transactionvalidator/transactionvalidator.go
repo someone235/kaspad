@@ -18,6 +18,7 @@ type transactionValidator struct {
 	daaBlocksStore             model.DAABlocksStore
 	enableNonNativeSubnetworks bool
 	maxCoinbasePayloadLength   uint64
+	allowNativePayload         bool
 	sigCache                   *txscript.SigCache
 	sigCacheECDSA              *txscript.SigCacheECDSA
 	txMassCalculator           *txmass.Calculator
@@ -27,6 +28,7 @@ type transactionValidator struct {
 func New(blockCoinbaseMaturity uint64,
 	enableNonNativeSubnetworks bool,
 	maxCoinbasePayloadLength uint64,
+	allowNativePayload bool,
 	databaseContext model.DBReader,
 	pastMedianTimeManager model.PastMedianTimeManager,
 	ghostdagDataStore model.GHOSTDAGDataStore,
@@ -37,6 +39,7 @@ func New(blockCoinbaseMaturity uint64,
 		blockCoinbaseMaturity:      blockCoinbaseMaturity,
 		enableNonNativeSubnetworks: enableNonNativeSubnetworks,
 		maxCoinbasePayloadLength:   maxCoinbasePayloadLength,
+		allowNativePayload:         allowNativePayload,
 		databaseContext:            databaseContext,
 		pastMedianTimeManager:      pastMedianTimeManager,
 		ghostdagDataStore:          ghostdagDataStore,

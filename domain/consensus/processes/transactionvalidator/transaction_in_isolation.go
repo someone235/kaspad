@@ -152,7 +152,7 @@ func (v *transactionValidator) checkSubnetworkRegistryTransaction(tx *externalap
 }
 
 func (v *transactionValidator) checkNativeTransactionPayload(tx *externalapi.DomainTransaction) error {
-	if tx.SubnetworkID == subnetworks.SubnetworkIDNative && len(tx.Payload) > 0 {
+	if !v.allowNativePayload && tx.SubnetworkID == subnetworks.SubnetworkIDNative && len(tx.Payload) > 0 {
 		return errors.Wrapf(ruleerrors.ErrInvalidPayload, "transaction in the native subnetwork "+
 			"includes a payload")
 	}

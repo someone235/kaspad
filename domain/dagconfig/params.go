@@ -188,6 +188,8 @@ type Params struct {
 	MaxBlockLevel int
 
 	MergeDepth uint64
+
+	AllowNativePayload bool
 }
 
 // NormalizeRPCServerAddress returns addr with the current network default
@@ -476,8 +478,9 @@ var DevnetParams = Params{
 	PruningProofM:                           defaultPruningProofM,
 	DeflationaryPhaseDaaScore:               defaultDeflationaryPhaseDaaScore,
 
-	MaxBlockLevel: 250,
-	MergeDepth:    defaultMergeDepth,
+	MaxBlockLevel:      250,
+	MergeDepth:         defaultMergeDepth,
+	AllowNativePayload: true,
 }
 
 // ErrDuplicateNet describes an error where the parameters for a Kaspa
