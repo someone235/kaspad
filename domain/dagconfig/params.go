@@ -295,11 +295,11 @@ var MainnetParams = Params{
 // TestnetParams defines the network parameters for the test Kaspa network.
 var TestnetParams = Params{
 	K:           defaultGHOSTDAGK,
-	Name:        "kaspa-testnet-10",
+	Name:        "kaspa-testnet-11",
 	Net:         appmessage.Testnet,
 	RPCPort:     "16210",
 	DefaultPort: "16211",
-	DNSSeeds:    []string{"testnet-10-dnsseed.kas.pa"},
+	DNSSeeds:    []string{"testnet-11-dnsseed.kas.pa"},
 
 	// DAG parameters
 	GenesisBlock:                    &testnetGenesisBlock,
@@ -350,8 +350,9 @@ var TestnetParams = Params{
 	PruningProofM:                           defaultPruningProofM,
 	DeflationaryPhaseDaaScore:               defaultDeflationaryPhaseDaaScore,
 
-	MaxBlockLevel: 250,
-	MergeDepth:    defaultMergeDepth,
+	MaxBlockLevel:      250,
+	MergeDepth:         defaultMergeDepth,
+	AllowNativePayload: true,
 }
 
 // SimnetParams defines the network parameters for the simulation test Kaspa
