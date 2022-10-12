@@ -17,10 +17,12 @@ func main() {
 	//if err != nil {
 	//	panic(err)
 	//}
+	reverse()
+	os.Exit(0)
 
 	consensusConfig := &consensus.Config{Params: dagconfig.DevnetParams}
 	consensusConfig.SkipProofOfWork = true
-	dbPath := "/tmp/b/kaspa-devnet/datadir2/"
+	dbPath := "/tmp/local_devnet1/kaspa-devnet/datadir2/"
 	factory := consensus.NewFactory()
 	factory.SetTestDataDir(dbPath)
 	tc, tearDownFunc, err := factory.NewTestConsensus(consensusConfig, "blocks2json")
@@ -39,6 +41,11 @@ func main() {
 	defer gzipWriter.Close()
 
 	w := json.NewEncoder(gzipWriter)
+	err = w.Encode(consensusConfig.Params)
+	if err != nil {
+		panic(err)
+	}
+
 	visited := hashset.New()
 	queue := tc.DAGTraversalManager().NewUpHeap(model.NewStagingArea())
 	err = queue.Push(consensusConfig.GenesisHash)
@@ -48,6 +55,7 @@ func main() {
 
 	i := 0
 	txs := 0
+	pps := hashset.New()
 	for queue.Len() > 0 {
 		current := queue.Pop()
 		if visited.Contains(current) || current.Equal(model.VirtualBlockHash) {
@@ -63,6 +71,7 @@ func main() {
 			panic(err)
 		}
 		txs += len(block.Transactions)
+		pps.Add(block.Header.PruningPoint())
 
 		rpcBlock := appmessage.DomainBlockToRPCBlock(block)
 		rpcBlock.VerboseData = &appmessage.RPCBlockVerboseData{Hash: current.String()}
@@ -79,6 +88,63 @@ func main() {
 		err = queue.PushSlice(relation.Children)
 		if err != nil {
 			panic(err)
+		}
+	}
+
+	fmt.Printf("PPS: %+v\n", pps)
+}
+
+func reverse() {
+	consensusConfig := &consensus.Config{Params: dagconfig.DevnetParams}
+	consensusConfig.SkipProofOfWork = true
+	factory := consensus.NewFactory()
+	tc, tearDownFunc, err := factory.NewTestConsensus(consensusConfig, "blocks2json")
+	if err != nil {
+		panic(err)
+	}
+	defer tearDownFunc(true)
+
+	f, err := os.OpenFile("/home/ori/rusty-kaspa/consensus/tests/testdata/json_test.json.gz", os.O_RDONLY, 0600)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+
+	gzipReader, err := gzip.NewReader(f)
+	if err != nil {
+		panic(err)
+	}
+	defer gzipReader.Close()
+
+	r := json.NewDecoder(gzipReader)
+	//err = r.Encode(consensusConfig.Params)
+	//if err != nil {
+	//	panic(err)
+	//}
+
+	for i := 0; ; i++ {
+		rpcBlock := &appmessage.RPCBlock{}
+		err := r.Decode(rpcBlock)
+		if err != nil {
+			panic(err)
+		}
+
+		if i == 0 {
+			continue
+		}
+
+		block, err := appmessage.RPCBlockToDomainBlock(rpcBlock)
+		if err != nil {
+			panic(err)
+		}
+
+		err = tc.ValidateAndInsertBlock(block, true)
+		if err != nil {
+			panic(err)
+		}
+
+		if i%100 == 0 {
+			fmt.Printf("Validated %d blocks\n", i+1)
 		}
 	}
 }
