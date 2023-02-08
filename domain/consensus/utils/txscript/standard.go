@@ -429,7 +429,7 @@ func ExtractAtomicSwapDataPushes(version uint16, scriptPubKey []byte) (*AtomicSw
 		return nil, nil
 	}
 	if pops[11].data != nil {
-		locktime, err := makeScriptNum(pops[11].data, 5)
+		locktime, err := makeScriptNum(pops[11].data, 6)
 		if err != nil {
 			return nil, nil
 		}
