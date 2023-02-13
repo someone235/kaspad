@@ -1,6 +1,7 @@
 package consensus
 
 import (
+	"github.com/kaspanet/kaspad/domain/prefixmanager"
 	"io/ioutil"
 	"os"
 	"sync"
@@ -588,8 +589,20 @@ func (f *factory) NewTestConsensus(config *Config, testName string) (
 		return nil, nil, err
 	}
 
-	testConsensusDBPrefix := &prefix.Prefix{}
-	consensusAsInterface, shouldMigrate, err := f.NewConsensus(config, db, testConsensusDBPrefix, nil)
+	activePrefix, exists, err := prefixmanager.ActivePrefix(db)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if !exists {
+		activePrefix = &prefix.Prefix{}
+		err = prefixmanager.SetPrefixAsActive(db, activePrefix)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	consensusAsInterface, shouldMigrate, err := f.NewConsensus(config, db, activePrefix, nil)
 	if err != nil {
 		return nil, nil, err
 	}

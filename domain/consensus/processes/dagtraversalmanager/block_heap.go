@@ -107,6 +107,14 @@ func (bh *blockHeap) Push(blockHash *externalapi.DomainHash) error {
 	return nil
 }
 
+func (bh *blockHeap) PushWithGHOSTDAGData(blockHash *externalapi.DomainHash, ghostdagData *externalapi.BlockGHOSTDAGData) error {
+	heap.Push(bh.impl, &externalapi.BlockGHOSTDAGDataHashPair{
+		Hash:         blockHash,
+		GHOSTDAGData: ghostdagData,
+	})
+	return nil
+}
+
 func (bh *blockHeap) PushSlice(blockHashes []*externalapi.DomainHash) error {
 	for _, blockHash := range blockHashes {
 		err := bh.Push(blockHash)
