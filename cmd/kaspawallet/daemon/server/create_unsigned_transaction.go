@@ -113,7 +113,7 @@ func (s *server) selectUTXOs(spendAmount uint64, isSendAll bool, feePerInput uin
 		}
 
 		if broadcastTime, ok := s.usedOutpoints[*utxo.Outpoint]; ok {
-			if time.Since(broadcastTime) > time.Minute {
+			if time.Since(broadcastTime) > time.Hour {
 				delete(s.usedOutpoints, *utxo.Outpoint)
 			} else {
 				continue
