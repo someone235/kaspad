@@ -20,11 +20,21 @@ func createUnsignedTransaction(conf *createUnsignedTransactionConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), daemonTimeout)
 	defer cancel()
 
-	sendAmountSompi := uint64(conf.SendAmount * constants.SompiPerKaspa)
+	payments := make([]*pb.Payment, len(conf.ToAddress))
+	if conf.IsSendAll {
+		payments[0].Address = conf.ToAddress[0]
+	} else {
+		for i, address := range conf.ToAddress {
+			payments[i] = &pb.Payment{
+				Address: address,
+				Amount:  uint64(conf.SendAmount[i] * constants.SompiPerKaspa),
+			}
+		}
+	}
+
 	response, err := daemonClient.CreateUnsignedTransactions(ctx, &pb.CreateUnsignedTransactionsRequest{
 		From:                     conf.FromAddresses,
-		Address:                  conf.ToAddress,
-		Amount:                   sendAmountSompi,
+		Payments:                 payments,
 		IsSendAll:                conf.IsSendAll,
 		UseExistingChangeAddress: conf.UseExistingChangeAddress,
 	})

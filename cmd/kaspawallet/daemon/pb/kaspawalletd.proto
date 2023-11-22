@@ -33,11 +33,15 @@ message AddressBalances {
 }
 
 message CreateUnsignedTransactionsRequest {
+  repeated Payment payments = 1;
+  repeated string from = 2;
+  bool useExistingChangeAddress = 3;
+  bool isSendAll = 4;
+}
+
+message Payment{
   string address = 1;
   uint64 amount = 2;
-  repeated string from = 3;
-  bool useExistingChangeAddress = 4;
-  bool isSendAll = 5;
 }
 
 message CreateUnsignedTransactionsResponse {
@@ -105,12 +109,11 @@ message GetExternalSpendableUTXOsResponse{
 }
 // Since SendRequest contains a password - this command should only be used on a trusted or secure connection
 message SendRequest{
-  string toAddress = 1;
-  uint64 amount = 2;
-  string password = 3;
-  repeated string from = 4;
-  bool useExistingChangeAddress = 5;
-  bool isSendAll = 6;
+  repeated Payment payments = 1;
+  string password = 2;
+  repeated string from = 3;
+  bool useExistingChangeAddress = 4;
+  bool isSendAll = 5;
 }
 
 message SendResponse{

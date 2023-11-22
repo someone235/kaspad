@@ -22,7 +22,7 @@ func (s *server) CreateUnsignedTransactions(_ context.Context, request *pb.Creat
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	unsignedTransactions, err := s.createUnsignedTransactions(request.Address, request.Amount, request.IsSendAll,
+	unsignedTransactions, err := s.createUnsignedTransactions(request.Payments, request.IsSendAll,
 		request.From, request.UseExistingChangeAddress)
 	if err != nil {
 		return nil, err
@@ -31,19 +31,36 @@ func (s *server) CreateUnsignedTransactions(_ context.Context, request *pb.Creat
 	return &pb.CreateUnsignedTransactionsResponse{UnsignedTransactions: unsignedTransactions}, nil
 }
 
-func (s *server) createUnsignedTransactions(address string, amount uint64, isSendAll bool, fromAddressesString []string, useExistingChangeAddress bool) ([][]byte, error) {
+type payment struct {
+	toAddress util.Address
+	amount    uint64
+}
+
+func (s *server) createUnsignedTransactions(pbPayments []*pb.Payment, isSendAll bool, fromAddressesString []string, useExistingChangeAddress bool) ([][]byte, error) {
 	if !s.isSynced() {
 		return nil, errors.Errorf("wallet daemon is not synced yet, %s", s.formatSyncStateReport())
 	}
 
-	// make sure address string is correct before proceeding to a
-	// potentially long UTXO refreshment operation
-	toAddress, err := util.DecodeAddress(address, s.params.Prefix)
-	if err != nil {
-		return nil, err
+	payments := make([]*libkaspawallet.Payment, len(pbPayments))
+	for i, pbPayment := range pbPayments {
+		if isSendAll && pbPayment.Amount != 0 {
+			return nil, errors.Errorf("Cannot use --send-all with a specified amount")
+		}
+
+		// make sure address string is correct before proceeding to a
+		// potentially long UTXO refreshment operation
+		address, err := util.DecodeAddress(pbPayment.Address, s.params.Prefix)
+		if err != nil {
+			return nil, err
+		}
+
+		payments[i] = &libkaspawallet.Payment{
+			Address: address,
+			Amount:  pbPayment.Amount,
+		}
 	}
 
-	err = s.refreshUTXOs()
+	err := s.refreshUTXOs()
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +74,12 @@ func (s *server) createUnsignedTransactions(address string, amount uint64, isSen
 		fromAddresses = append(fromAddresses, fromAddress)
 	}
 
-	selectedUTXOs, spendValue, changeSompi, err := s.selectUTXOs(amount, isSendAll, feePerInput, fromAddresses)
+	totalAmount := uint64(0)
+	for _, payment := range payments {
+		totalAmount += payment.Amount
+	}
+
+	selectedUTXOs, spendValue, changeSompi, err := s.selectUTXOs(totalAmount, isSendAll, feePerInput, fromAddresses)
 	if err != nil {
 		return nil, err
 	}
@@ -71,10 +93,10 @@ func (s *server) createUnsignedTransactions(address string, amount uint64, isSen
 		return nil, err
 	}
 
-	payments := []*libkaspawallet.Payment{{
-		Address: toAddress,
-		Amount:  spendValue,
-	}}
+	if isSendAll {
+		payments[0].Amount = spendValue
+	}
+
 	if changeSompi > 0 {
 		payments = append(payments, &libkaspawallet.Payment{
 			Address: changeAddress,
@@ -88,7 +110,7 @@ func (s *server) createUnsignedTransactions(address string, amount uint64, isSen
 		return nil, err
 	}
 
-	unsignedTransactions, err := s.maybeAutoCompoundTransaction(unsignedTransaction, toAddress, changeAddress, changeWalletAddress)
+	unsignedTransactions, err := s.maybeAutoCompoundTransaction(unsignedTransaction, payments, changeAddress, changeWalletAddress)
 	if err != nil {
 		return nil, err
 	}

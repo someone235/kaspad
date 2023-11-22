@@ -20,14 +20,14 @@ import (
 // into a change address.
 // An additional `mergeTransaction` is generated - which merges the outputs of the above splits into a single output
 // paying to the original transaction's payee.
-func (s *server) maybeAutoCompoundTransaction(transactionBytes []byte, toAddress util.Address,
+func (s *server) maybeAutoCompoundTransaction(transactionBytes []byte, payments []*libkaspawallet.Payment,
 	changeAddress util.Address, changeWalletAddress *walletAddress) ([][]byte, error) {
 	transaction, err := serialization.DeserializePartiallySignedTransaction(transactionBytes)
 	if err != nil {
 		return nil, err
 	}
 
-	splitTransactions, err := s.maybeSplitAndMergeTransaction(transaction, toAddress, changeAddress, changeWalletAddress)
+	splitTransactions, err := s.maybeSplitAndMergeTransaction(transaction, payments, changeAddress, changeWalletAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s *server) mergeTransaction(
 	return serialization.DeserializePartiallySignedTransaction(mergeTransactionBytes)
 }
 
-func (s *server) maybeSplitAndMergeTransaction(transaction *serialization.PartiallySignedTransaction, toAddress util.Address,
+func (s *server) maybeSplitAndMergeTransaction(transaction *serialization.PartiallySignedTransaction, payments []*libkaspawallet.Payment,
 	changeAddress util.Address, changeWalletAddress *walletAddress) ([]*serialization.PartiallySignedTransaction, error) {
 
 	transactionMass, err := s.estimateMassAfterSignatures(transaction)
@@ -115,6 +115,10 @@ func (s *server) maybeSplitAndMergeTransaction(transaction *serialization.Partia
 
 	if transactionMass < mempool.MaximumStandardTransactionMass {
 		return []*serialization.PartiallySignedTransaction{transaction}, nil
+	}
+
+	if len(payments) != 1 {
+		return nil, errors.Errorf("Cannot auto-compound if there's more than one recipient")
 	}
 
 	splitCount, inputCountPerSplit, err := s.splitAndInputPerSplitCounts(transaction, transactionMass, changeAddress)
@@ -134,12 +138,12 @@ func (s *server) maybeSplitAndMergeTransaction(transaction *serialization.Partia
 	}
 
 	if len(splitTransactions) > 1 {
-		mergeTransaction, err := s.mergeTransaction(splitTransactions, transaction, toAddress, changeAddress, changeWalletAddress)
+		mergeTransaction, err := s.mergeTransaction(splitTransactions, transaction, payments[0].Address, changeAddress, changeWalletAddress)
 		if err != nil {
 			return nil, err
 		}
 		// Recursion will be 2-3 iterations deep even in the rarest` cases, so considered safe..
-		splitMergeTransaction, err := s.maybeSplitAndMergeTransaction(mergeTransaction, toAddress, changeAddress, changeWalletAddress)
+		splitMergeTransaction, err := s.maybeSplitAndMergeTransaction(mergeTransaction, payments, changeAddress, changeWalletAddress)
 		if err != nil {
 			return nil, err
 		}
