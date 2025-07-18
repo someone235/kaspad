@@ -19,6 +19,7 @@ import (
 	"github.com/kaspanet/kaspad/cmd/kaspawallet/daemon/pb"
 	"github.com/kaspanet/kaspad/cmd/kaspawallet/keys"
 	"github.com/kaspanet/kaspad/domain/dagconfig"
+	"github.com/kaspanet/kaspad/infrastructure/logger"
 	"github.com/kaspanet/kaspad/infrastructure/network/rpcclient"
 	"github.com/kaspanet/kaspad/infrastructure/os/signal"
 	"github.com/kaspanet/kaspad/util/panics"
@@ -58,8 +59,14 @@ type server struct {
 const MaxDaemonSendMsgSize = 100_000_000
 
 // Start starts the kaspawalletd server
-func Start(params *dagconfig.Params, listen, rpcServer string, keysFilePath string, profile string, timeout uint32) error {
-	initLog(defaultLogFile, defaultErrLogFile)
+func Start(params *dagconfig.Params, listen, rpcServer string, keysFilePath string, profile string, timeout uint32, logLevel string) error {
+	// Special show command to list supported subsystems and exit.
+	if logLevel == "show" {
+		fmt.Println("Supported subsystems", logger.SupportedSubsystems())
+		os.Exit(0)
+	}
+	
+	initLog(defaultLogFile, defaultErrLogFile, logLevel)
 
 	defer panics.HandlePanic(log, "MAIN", nil)
 	interrupt := signal.InterruptListener()

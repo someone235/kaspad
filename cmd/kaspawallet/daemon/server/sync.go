@@ -242,7 +242,7 @@ func (s *server) updateUTXOSet(entries []*appmessage.UTXOsByAddressesEntry, memp
 	}
 
 	mempoolExcludedUTXOs := make(map[externalapi.DomainOutpoint]*walletUTXO)
-	for _, entry := range entries {
+	for i, entry := range entries {
 		outpoint, err := appmessage.RPCOutpointToDomainOutpoint(entry.Outpoint)
 		if err != nil {
 			return err
@@ -274,6 +274,10 @@ func (s *server) updateUTXOSet(entries []*appmessage.UTXOsByAddressesEntry, memp
 				address:   address,
 			})
 		}
+
+		if i != 0 && i%1000 == 0 {
+			log.Debugf("Processed %d UTXOs out of %d (%d%%)", i+1, len(entries), (i+1)*100/len(entries))
+		}
 	}
 
 	sort.Slice(utxos, func(i, j int) bool { return utxos[i].UTXOEntry.Amount() > utxos[j].UTXOEntry.Amount() })
@@ -291,10 +295,13 @@ func (s *server) updateUTXOSet(entries []*appmessage.UTXOsByAddressesEntry, memp
 	}
 	s.lock.Unlock()
 
+	log.Debugf("Finished updating UTXO set")
+
 	return nil
 }
 
 func (s *server) refreshUTXOs() error {
+	log.Debugf("Refreshing wallet UTXOs")
 	refreshStart := time.Now()
 
 	// No need to lock for reading since the only writer of this set is on `syncLoop` on the same goroutine.
@@ -309,10 +316,14 @@ func (s *server) refreshUTXOs() error {
 		return err
 	}
 
+	log.Debugf("Fetched %d mempool entries", len(mempoolEntriesByAddresses.Entries))
+
 	getUTXOsByAddressesResponse, err := s.backgroundRPCClient.GetUTXOsByAddresses(addresses)
 	if err != nil {
 		return err
 	}
+
+	log.Debugf("Fetched %d UTXOs", len(getUTXOsByAddressesResponse.Entries))
 
 	return s.updateUTXOSet(getUTXOsByAddressesResponse.Entries, mempoolEntriesByAddresses.Entries, refreshStart)
 }
